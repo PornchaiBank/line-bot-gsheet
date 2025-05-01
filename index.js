@@ -44,12 +44,9 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
   const userText = event.message.text;
-  const replyText = await searchSheet(userText);
+  const replyContent = await searchSheet(userText);
 
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: replyText
-  });
+  return client.replyMessage(event.replyToken, replyContent);
 }
 
 async function searchSheet(keyword) {
@@ -61,7 +58,7 @@ async function searchSheet(keyword) {
   });
 
   const rows = res.data.values;
-  if (!rows || rows.length < 2) return 'ไม่มีข้อมูลในตาราง';
+  if (!rows || rows.length < 2) return { type: 'text', text: 'ไม่มีข้อมูลในตาราง' };
 
   const headers = rows[0];
   const dataRows = rows.slice(1);
@@ -71,7 +68,58 @@ async function searchSheet(keyword) {
     threshold: 0.4
   });
   const fuzzyResult = fuse.search(keyword);
-  if (!fuzzyResult.length) return 'ไม่พบข้อมูลสำหรับคำค้นนี้';
+  if (!fuzzyResult.length) return { type: 'text', text: 'ไม่พบข้อมูลสำหรับคำค้นนี้' };
+
+  const matchedForms = [...new Set(fuzzyResult.map(r => r.item[0]))].sort();
+  if (matchedForms.length > 1) {
+    const bubbles = matchedForms.slice(0, 12).map(code => {
+      const name = dataRows.find(row => row[0] === code)?.[1] || '';
+      return {
+        type: 'bubble',
+        size: 'kilo',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'text',
+              text: `📄 ${code}`,
+              weight: 'bold',
+              size: 'md'
+            },
+            {
+              type: 'text',
+              text: name,
+              size: 'sm',
+              color: '#555555',
+              wrap: true
+            },
+            {
+              type: 'button',
+              style: 'primary',
+              action: {
+                type: 'message',
+                label: 'ดูรายละเอียด',
+                text: code
+              },
+              height: 'sm',
+              color: '#0FA3B1'
+            }
+          ]
+        }
+      };
+    });
+
+    return {
+      type: 'flex',
+      altText: 'กรุณาเลือกฟอร์มที่ต้องการ',
+      contents: {
+        type: 'carousel',
+        contents: bubbles
+      }
+    };
+  }
 
   const matchKeyword = fuzzyResult[0].item[0];
   const filtered = dataRows.filter(row => row[0] === matchKeyword);
@@ -83,16 +131,15 @@ async function searchSheet(keyword) {
   const view = groupByField(3);
   const table = groupByField(4);
 
-  return `📋 ฟอร์ม ${matchKeyword}: ${formName}
+  const message = `📋 ฟอร์ม ${matchKeyword}: ${formName}
 
-🗃️ Stored:
-${stored.map(s => `• ${s}`).join('\n')}
+🗃️ Stored:\n${stored.map(s => `• ${s}`).join('\n')}
 
-🧭 View:
-${view.map(v => `• ${v}`).join('\n')}
+🧭 View:\n${view.map(v => `• ${v}`).join('\n')}
 
-📂 Table:
-${table.map(t => `• ${t}`).join('\n')}`;
+📂 Table:\n${table.map(t => `• ${t}`).join('\n')}`;
+
+  return { type: 'text', text: message };
 }
 
 app.listen(port, () => console.log(`Running on ${port}`));
