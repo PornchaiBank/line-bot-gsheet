@@ -44,16 +44,12 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
   const userText = event.message.text;
-  const flexContent = await searchSheet(userText);
+  const replyText = await searchSheet(userText);
 
-  if (typeof flexContent === 'string') {
-    return client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: flexContent
-    });
-  } else {
-    return client.replyMessage(event.replyToken, flexContent);
-  }
+  return client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: replyText
+  });
 }
 
 async function searchSheet(keyword) {
@@ -70,8 +66,15 @@ async function searchSheet(keyword) {
   const headers = rows[0];
   const dataRows = rows.slice(1);
 
-  const filtered = dataRows.filter(row => row[0] === keyword);
-  if (filtered.length === 0) return 'ไม่พบข้อมูลสำหรับฟอร์มนี้';
+  const fuse = new Fuse(dataRows, {
+    keys: ['0'],
+    threshold: 0.4
+  });
+  const fuzzyResult = fuse.search(keyword);
+  if (!fuzzyResult.length) return 'ไม่พบข้อมูลสำหรับคำค้นนี้';
+
+  const matchKeyword = fuzzyResult[0].item[0];
+  const filtered = dataRows.filter(row => row[0] === matchKeyword);
 
   const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
 
@@ -80,51 +83,16 @@ async function searchSheet(keyword) {
   const view = groupByField(3);
   const table = groupByField(4);
 
-  return {
-    type: 'flex',
-    altText: `ข้อมูลของฟอร์ม ${keyword}`,
-    contents: {
-      type: 'bubble',
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: `ฟอร์ม ${keyword}: ${formName}`,
-            weight: 'bold',
-            size: 'lg',
-            margin: 'md'
-          },
-          {
-            type: 'separator',
-            margin: 'md'
-          },
-          {
-            type: 'text',
-            text: 'Stored:',
-            weight: 'bold',
-            margin: 'md'
-          },
-          ...stored.map(s => ({ type: 'text', text: s, margin: 'sm' })),
-          {
-            type: 'text',
-            text: 'View:',
-            weight: 'bold',
-            margin: 'md'
-          },
-          ...view.map(v => ({ type: 'text', text: v, margin: 'sm' })),
-          {
-            type: 'text',
-            text: 'Table:',
-            weight: 'bold',
-            margin: 'md'
-          },
-          ...table.map(t => ({ type: 'text', text: t, margin: 'sm' }))
-        ]
-      }
-    }
-  };
+  return `📋 ฟอร์ม ${matchKeyword}: ${formName}
+
+🗃️ Stored:
+${stored.map(s => `• ${s}`).join('\n')}
+
+🧭 View:
+${view.map(v => `• ${v}`).join('\n')}
+
+📂 Table:
+${table.map(t => `• ${t}`).join('\n')}`;
 }
 
 app.listen(port, () => console.log(`Running on ${port}`));
