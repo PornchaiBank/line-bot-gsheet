@@ -88,16 +88,20 @@ async function searchSheet(keyword) {
   const headers = rows[0];
   const dataRows = rows.slice(1);
 
-  // ✅ ตรวจ exact match ก่อน
-  const exactMatches = dataRows.filter(row => row[0] === keyword);
+  const keywordLower = keyword.toLowerCase();
+
+  // ✅ ตรวจ exact match โดยไม่สนตัวพิมพ์เล็กใหญ่
+  const exactMatches = dataRows.filter(row => row[0]?.toLowerCase() === keywordLower);
   if (exactMatches.length > 0) {
     return buildFormDetailMessage(keyword, exactMatches);
   }
 
-  // ❓ ไม่เจอแบบเป๊ะ → ใช้ fuzzy match
+  // ❓ ไม่เจอแบบเป๊ะ → ใช้ fuzzy match แบบไม่สน case
   const fuse = new Fuse(dataRows, {
     keys: ['0'],
-    threshold: 0.4
+    threshold: 0.4,
+    ignoreLocation: true,
+    isCaseSensitive: false
   });
   const fuzzyResult = fuse.search(keyword);
   if (!fuzzyResult.length) return { type: 'text', text: '❌ ไม่พบข้อมูลที่เกี่ยวข้องกับคำค้นนี้' };
