@@ -49,6 +49,32 @@ async function handleEvent(event) {
   return client.replyMessage(event.replyToken, replyContent);
 }
 
+function buildFormDetailMessage(keyword, filtered) {
+  const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
+
+  const formName = filtered[0][1];
+  const stored = groupByField(2);
+  const view = groupByField(3);
+  const table = groupByField(4);
+
+  const message = `📋 *ฟอร์ม ${keyword}: ${formName}*
+
+🗂️ *Stored*
+${stored.map(s => `🔹 ${s}`).join('\n')}
+
+🖥️ *View*
+${view.map(v => `🔸 ${v}`).join('\n')}
+
+📊 *Table*
+${table.map(t => `▪️ ${t}`).join('\n')}`;
+
+  return {
+    type: 'text',
+    text: message,
+    emojis: []
+  };
+}
+
 async function searchSheet(keyword) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
 
@@ -58,17 +84,24 @@ async function searchSheet(keyword) {
   });
 
   const rows = res.data.values;
-  if (!rows || rows.length < 2) return { type: 'text', text: 'ไม่มีข้อมูลในตาราง' };
+  if (!rows || rows.length < 2) return { type: 'text', text: '❌ ไม่พบข้อมูลในตาราง' };
 
   const headers = rows[0];
   const dataRows = rows.slice(1);
 
+  // ✅ ตรวจ exact match ก่อน
+  const exactMatches = dataRows.filter(row => row[0] === keyword);
+  if (exactMatches.length > 0) {
+    return buildFormDetailMessage(keyword, exactMatches);
+  }
+
+  // ❓ ไม่เจอแบบเป๊ะ → ใช้ fuzzy match
   const fuse = new Fuse(dataRows, {
     keys: ['0'],
     threshold: 0.4
   });
   const fuzzyResult = fuse.search(keyword);
-  if (!fuzzyResult.length) return { type: 'text', text: 'ไม่พบข้อมูลสำหรับคำค้นนี้' };
+  if (!fuzzyResult.length) return { type: 'text', text: '❌ ไม่พบข้อมูลที่เกี่ยวข้องกับคำค้นนี้' };
 
   const matchedForms = [...new Set(fuzzyResult.map(r => r.item[0]))].sort();
   if (matchedForms.length > 1) {
@@ -100,7 +133,7 @@ async function searchSheet(keyword) {
               style: 'primary',
               action: {
                 type: 'message',
-                label: 'ดูรายละเอียด',
+                label: '🔍 ดูรายละเอียด',
                 text: code
               },
               height: 'sm',
@@ -113,7 +146,7 @@ async function searchSheet(keyword) {
 
     return {
       type: 'flex',
-      altText: 'กรุณาเลือกฟอร์มที่ต้องการ',
+      altText: '📌 กรุณาเลือกฟอร์มที่ต้องการ',
       contents: {
         type: 'carousel',
         contents: bubbles
@@ -123,23 +156,7 @@ async function searchSheet(keyword) {
 
   const matchKeyword = fuzzyResult[0].item[0];
   const filtered = dataRows.filter(row => row[0] === matchKeyword);
-
-  const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
-
-  const formName = filtered[0][1];
-  const stored = groupByField(2);
-  const view = groupByField(3);
-  const table = groupByField(4);
-
-  const message = `📋 ฟอร์ม ${matchKeyword}: ${formName}
-
-🗃️ Stored:\n${stored.map(s => `• ${s}`).join('\n')}
-
-🧭 View:\n${view.map(v => `• ${v}`).join('\n')}
-
-📂 Table:\n${table.map(t => `• ${t}`).join('\n')}`;
-
-  return { type: 'text', text: message };
+  return buildFormDetailMessage(matchKeyword, filtered);
 }
 
 app.listen(port, () => console.log(`Running on ${port}`));
