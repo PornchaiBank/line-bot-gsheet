@@ -57,21 +57,20 @@ function buildFormDetailMessage(keyword, filtered) {
   const view = groupByField(3);
   const table = groupByField(4);
 
-  const message = `📋 *ฟอร์ม ${keyword}: ${formName}*
+  const message = `📋 ฟอร์ม ${keyword}: ${formName}
 
-🗂️ *Stored*
+🗂️ Stored
 ${stored.map(s => `🔹 ${s}`).join('\n')}
 
-🖥️ *View*
+🖥️ View
 ${view.map(v => `🔸 ${v}`).join('\n')}
 
-📊 *Table*
+📊 Table
 ${table.map(t => `▪️ ${t}`).join('\n')}`;
 
   return {
     type: 'text',
-    text: message,
-    emojis: []
+    text: message
   };
 }
 
