@@ -44,12 +44,16 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
   const userText = event.message.text;
-  const replyText = await searchSheet(userText);
+  const flexContent = await searchSheet(userText);
 
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: replyText
-  });
+  if (typeof flexContent === 'string') {
+    return client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: flexContent
+    });
+  } else {
+    return client.replyMessage(event.replyToken, flexContent);
+  }
 }
 
 async function searchSheet(keyword) {
@@ -57,25 +61,70 @@ async function searchSheet(keyword) {
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SPREADSHEET_ID,
-    range: 'Sheet1!A:B'
+    range: 'Sheet1!A:E'
   });
 
   const rows = res.data.values;
-  if (!rows || rows.length === 0) return 'ไม่มีข้อมูลในตาราง';
+  if (!rows || rows.length < 2) return 'ไม่มีข้อมูลในตาราง';
 
-  const fuse = new Fuse(rows, {
-    keys: ['0'], // ค้นหาจาก column แรกของแต่ละ row
-    threshold: 0.4,
-    includeScore: true
-  });
+  const headers = rows[0];
+  const dataRows = rows.slice(1);
 
-  const result = fuse.search(keyword);
+  const filtered = dataRows.filter(row => row[0] === keyword);
+  if (filtered.length === 0) return 'ไม่พบข้อมูลสำหรับฟอร์มนี้';
 
-  if (result.length > 0) {
-    return result[0].item[1]; // column B ของ row ที่ match
-  } else {
-    return 'ขออภัย ไม่พบข้อมูลที่เกี่ยวข้อง';
-  }
+  const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
+
+  const formName = filtered[0][1];
+  const stored = groupByField(2);
+  const view = groupByField(3);
+  const table = groupByField(4);
+
+  return {
+    type: 'flex',
+    altText: `ข้อมูลของฟอร์ม ${keyword}`,
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: `ฟอร์ม ${keyword}: ${formName}`,
+            weight: 'bold',
+            size: 'lg',
+            margin: 'md'
+          },
+          {
+            type: 'separator',
+            margin: 'md'
+          },
+          {
+            type: 'text',
+            text: 'Stored:',
+            weight: 'bold',
+            margin: 'md'
+          },
+          ...stored.map(s => ({ type: 'text', text: s, margin: 'sm' })),
+          {
+            type: 'text',
+            text: 'View:',
+            weight: 'bold',
+            margin: 'md'
+          },
+          ...view.map(v => ({ type: 'text', text: v, margin: 'sm' })),
+          {
+            type: 'text',
+            text: 'Table:',
+            weight: 'bold',
+            margin: 'md'
+          },
+          ...table.map(t => ({ type: 'text', text: t, margin: 'sm' }))
+        ]
+      }
+    }
+  };
 }
 
 app.listen(port, () => console.log(`Running on ${port}`));
