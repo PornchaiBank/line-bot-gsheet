@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const { Client, middleware } = require('@line/bot-sdk');
 const fs = require('fs');
 const path = require('path');
+const Fuse = require('fuse.js');
 require('dotenv').config();
 
 const app = express();
@@ -38,6 +39,8 @@ app.post('/webhook', middleware(config), async (req, res) => {
 });
 
 async function handleEvent(event) {
+  console.log('Received event:', JSON.stringify(event));
+
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
   const userText = event.message.text;
@@ -58,12 +61,21 @@ async function searchSheet(keyword) {
   });
 
   const rows = res.data.values;
-  if (!rows) return 'ไม่มีข้อมูลในตาราง';
+  if (!rows || rows.length === 0) return 'ไม่มีข้อมูลในตาราง';
 
-  for (const row of rows) {
-    if (row[0] === keyword) return row[1];
+  const fuse = new Fuse(rows, {
+    keys: ['0'], // ค้นหาจาก column แรกของแต่ละ row
+    threshold: 0.4,
+    includeScore: true
+  });
+
+  const result = fuse.search(keyword);
+
+  if (result.length > 0) {
+    return result[0].item[1]; // column B ของ row ที่ match
+  } else {
+    return 'ขออภัย ไม่พบข้อมูลที่เกี่ยวข้อง';
   }
-  return 'ขออภัย ไม่พบข้อมูลที่ต้องการ';
 }
 
 app.listen(port, () => console.log(`Running on ${port}`));
