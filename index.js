@@ -44,9 +44,29 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
   const userText = event.message.text;
-  const replyContent = await searchSheet(userText);
+  const replyToken = event.replyToken;
+  const userId = event.source?.userId;
 
-  return client.replyMessage(event.replyToken, replyContent);
+  try {
+    const replyContent = await searchSheet(userText);
+
+    // พยายาม reply ก่อน (จำกัดภายใน 1 นาที และใช้ได้ครั้งเดียว)
+    await client.replyMessage(replyToken, replyContent);
+  } catch (err) {
+    console.warn('⚠️ replyMessage failed, fallback to pushMessage:', err?.message);
+    if (userId) {
+      try {
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: '⏱️ ระบบตอบกลับล่าช้าจึงส่งข้อความซ้ำให้คุณครับ'
+        });
+        const fallbackContent = await searchSheet(userText);
+        await client.pushMessage(userId, fallbackContent);
+      } catch (pushErr) {
+        console.error('❌ pushMessage failed:', pushErr);
+      }
+    }
+  }
 }
 
 function buildFormDetailMessage(keyword, filtered) {
