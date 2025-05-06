@@ -1,100 +1,4 @@
-const express = require('express');
-const { google } = require('googleapis');
-const { Client, middleware } = require('@line/bot-sdk');
-const fs = require('fs');
-const path = require('path');
-const Fuse = require('fuse.js');
-require('dotenv').config();
-
-const app = express();
-const port = process.env.PORT || 3000;
-
-// ✅ แปลง GOOGLE_CREDENTIALS base64 → credentials.json
-const credPath = path.join(__dirname, 'credentials.json');
-if (process.env.GOOGLE_CREDENTIALS && !fs.existsSync(credPath)) {
-  fs.writeFileSync(credPath, Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64'));
-}
-
-// LINE config
-const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.CHANNEL_SECRET
-};
-const client = new Client(config);
-
-// Google Sheets Auth
-const auth = new google.auth.GoogleAuth({
-  keyFile: 'credentials.json',
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-});
-
-// Webhook
-app.post('/webhook', middleware(config), async (req, res) => {
-  Promise.all(req.body.events.map(handleEvent))
-    .then(result => res.json(result))
-    .catch(err => {
-      console.error(err);
-      res.status(500).end();
-    });
-});
-
-async function handleEvent(event) {
-  console.log('Received event:', JSON.stringify(event));
-
-  if (event.type !== 'message' || event.message.type !== 'text') return null;
-
-  const userText = event.message.text;
-  const replyToken = event.replyToken;
-  const userId = event.source?.userId;
-
-  try {
-    const replyContent = await searchSheet(userText);
-
-    // พยายาม reply ก่อน (จำกัดภายใน 1 นาที และใช้ได้ครั้งเดียว)
-    await client.replyMessage(replyToken, replyContent);
-  } catch (err) {
-    console.warn('⚠️ replyMessage failed, fallback to pushMessage:', err?.message);
-    if (userId) {
-      try {
-        await client.pushMessage(userId, {
-          type: 'text',
-          text: '⏱️ ระบบตอบกลับล่าช้าจึงส่งข้อความซ้ำให้คุณครับ'
-        });
-        const fallbackContent = await searchSheet(userText);
-        await client.pushMessage(userId, fallbackContent);
-      } catch (pushErr) {
-        console.error('❌ pushMessage failed:', pushErr);
-      }
-    }
-  }
-}
-
-function buildFormDetailMessage(keyword, filtered) {
-  const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
-
-  const formName = filtered[0][1];
-  const stored = groupByField(2);
-  const view = groupByField(3);
-  const table = groupByField(4);
-
-  const message = `📋 ฟอร์ม ${keyword}: ${formName}
-
-🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('\n')}
-
-🖥️ View
-${view.map(v => `🔸 ${v}`).join('\n')}
-
-📊 Table
-${table.map(t => `▪️ ${t}`).join('\n')}`;
-
-  return {
-    type: 'text',
-    text: message
-  };
-}
-
-async function searchSheet(keyword) {
+async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
 
   const res = await sheets.spreadsheets.values.get({
@@ -110,13 +14,11 @@ async function searchSheet(keyword) {
 
   const keywordLower = keyword.toLowerCase();
 
-  // ✅ ตรวจ exact match โดยไม่สนตัวพิมพ์เล็กใหญ่
   const exactMatches = dataRows.filter(row => row[0]?.toLowerCase() === keywordLower);
   if (exactMatches.length > 0) {
     return buildFormDetailMessage(keyword, exactMatches);
   }
 
-  // ❓ ไม่เจอแบบเป๊ะ → ใช้ fuzzy match แบบไม่สน case
   const fuse = new Fuse(dataRows, {
     keys: ['0'],
     threshold: 0.4,
@@ -127,59 +29,82 @@ async function searchSheet(keyword) {
   if (!fuzzyResult.length) return { type: 'text', text: '❌ ไม่พบข้อมูลที่เกี่ยวข้องกับคำค้นนี้' };
 
   const matchedForms = [...new Set(fuzzyResult.map(r => r.item[0]))].sort();
-  if (matchedForms.length > 1) {
-    const bubbles = matchedForms.slice(0, 12).map(code => {
-      const name = dataRows.find(row => row[0] === code)?.[1] || '';
-      return {
-        type: 'bubble',
-        size: 'kilo',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'text',
-              text: `📄 ${code}`,
-              weight: 'bold',
-              size: 'md'
+  const allBubbles = matchedForms.map(code => {
+    const name = dataRows.find(row => row[0] === code)?.[1] || '';
+    return {
+      type: 'bubble',
+      size: 'kilo',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          {
+            type: 'text',
+            text: `📄 ${code}`,
+            weight: 'bold',
+            size: 'md'
+          },
+          {
+            type: 'text',
+            text: name,
+            size: 'sm',
+            color: '#555555',
+            wrap: true
+          },
+          {
+            type: 'button',
+            style: 'primary',
+            action: {
+              type: 'message',
+              label: '🔍 ดูรายละเอียด',
+              text: code
             },
-            {
-              type: 'text',
-              text: name,
-              size: 'sm',
-              color: '#555555',
-              wrap: true
-            },
-            {
-              type: 'button',
-              style: 'primary',
-              action: {
-                type: 'message',
-                label: '🔍 ดูรายละเอียด',
-                text: code
-              },
-              height: 'sm',
-              color: '#0FA3B1'
-            }
-          ]
-        }
-      };
-    });
+            height: 'sm',
+            color: '#0FA3B1'
+          }
+        ]
+      }
+    };
+  });
 
+  const chunkSize = 12;
+  const chunks = [];
+  for (let i = 0; i < allBubbles.length; i += chunkSize) {
+    chunks.push(allBubbles.slice(i, i + chunkSize));
+  }
+
+  if (chunks.length === 1) {
     return {
       type: 'flex',
       altText: '📌 กรุณาเลือกฟอร์มที่ต้องการ',
       contents: {
         type: 'carousel',
-        contents: bubbles
+        contents: chunks[0]
       }
     };
+  } else {
+    const firstMessage = {
+      type: 'flex',
+      altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
+      contents: {
+        type: 'carousel',
+        contents: chunks[0]
+      }
+    };
+    if (userId) {
+      for (let i = 1; i < chunks.length; i++) {
+        const msg = {
+          type: 'flex',
+          altText: '📌 ฟอร์มเพิ่มเติม',
+          contents: {
+            type: 'carousel',
+            contents: chunks[i]
+          }
+        };
+        await client.pushMessage(userId, msg);
+      }
+    }
+    return firstMessage;
   }
-
-  const matchKeyword = fuzzyResult[0].item[0];
-  const filtered = dataRows.filter(row => row[0] === matchKeyword);
-  return buildFormDetailMessage(matchKeyword, filtered);
 }
-
-app.listen(port, () => console.log(`Running on ${port}`));
