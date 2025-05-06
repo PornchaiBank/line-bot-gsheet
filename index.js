@@ -34,19 +34,42 @@ app.post('/webhook', middleware(config), async (req, res) => {
     if (event.type === 'message' && event.message.type === 'text') {
       const replyToken = event.replyToken;
       const userId = event.source?.userId;
+      const text = event.message.text;
+
+      // เช็คว่าผู้ใช้ส่ง "next:{page}" มาหรือไม่
+      const nextMatch = text.match(/^next:(\d+)$/i);
+      if (nextMatch) {
+        const page = parseInt(nextMatch[1], 10);
+        const session = userSessions[userId];
+        if (session && session.pages[page]) {
+          await client.replyMessage(replyToken, {
+            type: 'flex',
+            altText: '📌 ฟอร์มเพิ่มเติม',
+            contents: {
+              type: 'carousel',
+              contents: session.pages[page]
+            }
+          });
+          session.currentPage = page;
+          return;
+        }
+      }
+
       try {
-        const message = await searchSheet(event.message.text, userId);
+        const message = await searchSheet(text, userId);
         await client.replyMessage(replyToken, message);
       } catch (err) {
         console.error('Reply failed, trying push:', err);
         if (userId) {
-          const fallback = await searchSheet(event.message.text);
+          const fallback = await searchSheet(text, userId);
           await client.pushMessage(userId, fallback);
         }
       }
     }
   })).then(() => res.sendStatus(200));
 });
+
+const userSessions = {};
 
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
@@ -59,11 +82,8 @@ async function searchSheet(keyword, userId = null) {
   const rows = res.data.values;
   if (!rows || rows.length < 2) return { type: 'text', text: '❌ ไม่พบข้อมูลในตาราง' };
 
-  const headers = rows[0];
   const dataRows = rows.slice(1);
-
   const keywordLower = keyword.toLowerCase();
-
   const exactMatches = dataRows.filter(row => row[0]?.toLowerCase() === keywordLower);
   if (exactMatches.length > 0) {
     return buildFormDetailMessage(keyword, exactMatches);
@@ -124,39 +144,42 @@ async function searchSheet(keyword, userId = null) {
     chunks.push(allBubbles.slice(i, i + chunkSize));
   }
 
-  if (chunks.length === 1) {
-    return {
-      type: 'flex',
-      altText: '📌 กรุณาเลือกฟอร์มที่ต้องการ',
-      contents: {
-        type: 'carousel',
-        contents: chunks[0]
-      }
+  if (userId) {
+    userSessions[userId] = {
+      pages: chunks,
+      currentPage: 0
     };
-  } else {
-    const firstMessage = {
-      type: 'flex',
-      altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
-      contents: {
-        type: 'carousel',
-        contents: chunks[0]
-      }
-    };
-    if (userId) {
-      for (let i = 1; i < chunks.length; i++) {
-        const msg = {
-          type: 'flex',
-          altText: '📌 ฟอร์มเพิ่มเติม',
-          contents: {
-            type: 'carousel',
-            contents: chunks[i]
-          }
-        };
-        await client.pushMessage(userId, msg);
-      }
-    }
-    return firstMessage;
   }
+
+  const firstMessage = {
+    type: 'flex',
+    altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
+    contents: {
+      type: 'carousel',
+      contents: chunks[0]
+    }
+  };
+
+  if (chunks.length > 1) {
+    return {
+      type: 'template',
+      altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
+      template: {
+        type: 'buttons',
+        title: '📄 พบหลายฟอร์ม',
+        text: 'กรุณาเลือกฟอร์ม หรือดูหน้าถัดไป',
+        actions: [
+          {
+            type: 'message',
+            label: '▶️ ถัดไป',
+            text: `next:1`
+          }
+        ]
+      }
+    };
+  }
+
+  return firstMessage;
 }
 
 function buildFormDetailMessage(keyword, filtered) {
