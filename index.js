@@ -1,3 +1,47 @@
+const express = require('express');
+const { google } = require('googleapis');
+const { Client, middleware } = require('@line/bot-sdk');
+const fs = require('fs');
+const path = require('path');
+const Fuse = require('fuse.js');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// LINE config
+const config = {
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.CHANNEL_SECRET
+};
+const client = new Client(config);
+
+// Google Sheets Auth
+const auth = new google.auth.GoogleAuth({
+  keyFile: 'credentials.json',
+  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+});
+
+// Middleware
+app.post('/webhook', middleware(config), async (req, res) => {
+  Promise.all(req.body.events.map(async (event) => {
+    if (event.type === 'message' && event.message.type === 'text') {
+      const replyToken = event.replyToken;
+      const userId = event.source?.userId;
+      try {
+        const message = await searchSheet(event.message.text, userId);
+        await client.replyMessage(replyToken, message);
+      } catch (err) {
+        console.error('Reply failed, trying push:', err);
+        if (userId) {
+          const fallback = await searchSheet(event.message.text);
+          await client.pushMessage(userId, fallback);
+        }
+      }
+    }
+  })).then(() => res.sendStatus(200));
+});
+
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
 
@@ -108,3 +152,29 @@ async function searchSheet(keyword, userId = null) {
     return firstMessage;
   }
 }
+
+function buildFormDetailMessage(keyword, filtered) {
+  const groupByField = (index) => [...new Set(filtered.map(row => row[index]).filter(Boolean))];
+
+  const formName = filtered[0][1];
+  const stored = groupByField(2);
+  const view = groupByField(3);
+  const table = groupByField(4);
+
+  const message = `📋 ฟอร์ม ${keyword}: ${formName}
+
+🗂️ Stored\n${stored.map(s => `🔹 ${s}`).join('\n')}
+
+🖥️ View\n${view.map(v => `🔸 ${v}`).join('\n')}
+
+📊 Table\n${table.map(t => `▪️ ${t}`).join('\n')}`;
+
+  return {
+    type: 'text',
+    text: message
+  };
+}
+
+app.listen(port, () => {
+  console.log(`✅ LINE Bot running at http://localhost:${port}`);
+});
