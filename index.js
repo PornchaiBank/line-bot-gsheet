@@ -9,26 +9,24 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ✅ แปลง GOOGLE_CREDENTIALS base64 → credentials.json
 const credPath = path.join(__dirname, 'credentials.json');
 if (process.env.GOOGLE_CREDENTIALS && !fs.existsSync(credPath)) {
   fs.writeFileSync(credPath, Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64'));
 }
 
-// LINE config
 const config = {
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.CHANNEL_SECRET
 };
 const client = new Client(config);
 
-// Google Sheets Auth
 const auth = new google.auth.GoogleAuth({
   keyFile: 'credentials.json',
   scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
 });
 
-// Middleware
+const userSessions = {};
+
 app.post('/webhook', middleware(config), async (req, res) => {
   Promise.all(req.body.events.map(async (event) => {
     if (event.type === 'message' && event.message.type === 'text') {
@@ -36,20 +34,46 @@ app.post('/webhook', middleware(config), async (req, res) => {
       const userId = event.source?.userId;
       const text = event.message.text;
 
-      // เช็คว่าผู้ใช้ส่ง "next:{page}" มาหรือไม่
       const nextMatch = text.match(/^next:(\d+)$/i);
       if (nextMatch) {
         const page = parseInt(nextMatch[1], 10);
         const session = userSessions[userId];
         if (session && session.pages[page]) {
-          await client.replyMessage(replyToken, {
+          const maxPage = session.pages.length - 1;
+          const nextPage = page < maxPage ? page + 1 : null;
+
+          const response = {
             type: 'flex',
-            altText: '📌 ฟอร์มเพิ่มเติม',
+            altText: `📌 หน้า ${page + 1}/${session.pages.length}`,
             contents: {
               type: 'carousel',
               contents: session.pages[page]
             }
-          });
+          };
+
+          if (nextPage !== null) {
+            await client.replyMessage(replyToken, [
+              response,
+              {
+                type: 'template',
+                altText: '📌 หน้าถัดไป',
+                template: {
+                  type: 'buttons',
+                  title: `หน้า ${page + 1}/${session.pages.length}`,
+                  text: 'ดูหน้าถัดไป',
+                  actions: [
+                    {
+                      type: 'message',
+                      label: '▶️ ถัดไป',
+                      text: `next:${nextPage}`
+                    }
+                  ]
+                }
+              }
+            ]);
+          } else {
+            await client.replyMessage(replyToken, response);
+          }
           session.currentPage = page;
           return;
         }
@@ -68,8 +92,6 @@ app.post('/webhook', middleware(config), async (req, res) => {
     }
   })).then(() => res.sendStatus(200));
 });
-
-const userSessions = {};
 
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
@@ -151,7 +173,7 @@ async function searchSheet(keyword, userId = null) {
     };
   }
 
-  const firstMessage = {
+  const response = {
     type: 'flex',
     altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
     contents: {
@@ -161,25 +183,28 @@ async function searchSheet(keyword, userId = null) {
   };
 
   if (chunks.length > 1) {
-    return {
-      type: 'template',
-      altText: '📌 พบหลายฟอร์ม กรุณาเลือก',
-      template: {
-        type: 'buttons',
-        title: '📄 พบหลายฟอร์ม',
-        text: 'กรุณาเลือกฟอร์ม หรือดูหน้าถัดไป',
-        actions: [
-          {
-            type: 'message',
-            label: '▶️ ถัดไป',
-            text: `next:1`
-          }
-        ]
+    return [
+      response,
+      {
+        type: 'template',
+        altText: '📌 หน้าถัดไป',
+        template: {
+          type: 'buttons',
+          title: `หน้า 1/${chunks.length}`,
+          text: 'ดูหน้าถัดไป',
+          actions: [
+            {
+              type: 'message',
+              label: '▶️ ถัดไป',
+              text: `next:1`
+            }
+          ]
+        }
       }
-    };
+    ];
   }
 
-  return firstMessage;
+  return response;
 }
 
 function buildFormDetailMessage(keyword, filtered) {
