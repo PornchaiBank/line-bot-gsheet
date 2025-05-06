@@ -9,6 +9,12 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// ✅ แปลง GOOGLE_CREDENTIALS base64 → credentials.json
+const credPath = path.join(__dirname, 'credentials.json');
+if (process.env.GOOGLE_CREDENTIALS && !fs.existsSync(credPath)) {
+  fs.writeFileSync(credPath, Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64'));
+}
+
 // LINE config
 const config = {
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
