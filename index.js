@@ -98,7 +98,7 @@ async function searchSheet(keyword, userId = null) {
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SPREADSHEET_ID,
-    range: 'Sheet1!A:E'
+    range: 'Sheet1!A:F'
   });
 
   const rows = res.data.values;
@@ -214,6 +214,7 @@ function buildFormDetailMessage(keyword, filtered) {
   const stored = groupByField(2);
   const view = groupByField(3);
   const table = groupByField(4);
+  const report = groupByField(5);
 
   const message = `📋 ฟอร์ม ${keyword}: ${formName}
 
@@ -221,7 +222,9 @@ function buildFormDetailMessage(keyword, filtered) {
 
 🖥️ View\n${view.map(v => `🔸 ${v}`).join('\n')}
 
-📊 Table\n${table.map(t => `▪️ ${t}`).join('\n')}`;
+📊 Table\n${table.map(t => `▪️ ${t}`).join('\n')}
+
+📑 Report\n${report.map(r => `📄 ${r}`).join('\n')}`;
 
   return {
     type: 'text',
