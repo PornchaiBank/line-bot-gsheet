@@ -237,20 +237,16 @@ function buildFormDetailMessage(keyword, filtered) {
   const message = `📋 ฟอร์ม ${keyword}: ${formName}
 
 🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('
-')}
+${stored.map(s => `🔹 ${s}`).join('\n')}
 
 🖥️ View
-${view.map(v => `🔸 ${v}`).join('
-')}
+${view.map(v => `🔸 ${v}`).join('\n')}
 
 📊 Table
-${table.map(t => `▪️ ${t}`).join('
-')}
+${table.map(t => `▪️ ${t}`).join('\n')}
 
 📑 Report
-${report.map(r => `📄 ${r}`).join('
-')}`;
+${report.map(r => `📄 ${r}`).join('\n')}`;
 
   return {
     type: 'text',
