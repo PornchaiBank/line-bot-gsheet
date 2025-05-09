@@ -34,6 +34,26 @@ app.post('/webhook', middleware(config), async (req, res) => {
       const userId = event.source?.userId;
       const text = event.message.text;
 
+      try {
+        // 🔒 ตรวจสอบว่า userId อยู่ใน blacklist (Sheet2!A:A)
+        const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
+        const blockRes = await sheets.spreadsheets.values.get({
+          spreadsheetId: process.env.SPREADSHEET_ID,
+          range: 'Sheet2!A:A'
+        });
+        const blockedUsers = (blockRes.data.values || []).flat();
+        if (blockedUsers.includes(userId)) {
+          await client.replyMessage(replyToken, {
+            type: 'text',
+            text: '🚫 คุณไม่มีสิทธิ์ใช้งาน กรุณาติดต่อ Admin'
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('ตรวจสอบ blacklist ล้มเหลว:', err);
+        // หาก error ในการดึง blacklist ให้อนุญาตให้ทำงานต่อ
+      }
+
       const nextMatch = text.match(/^next:(\d+)$/i);
       if (nextMatch) {
         const page = parseInt(nextMatch[1], 10);
@@ -95,12 +115,10 @@ app.post('/webhook', middleware(config), async (req, res) => {
 
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
-
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SPREADSHEET_ID,
     range: 'Sheet1!A:F'
   });
-
   const rows = res.data.values;
   if (!rows || rows.length < 2) return { type: 'text', text: '❌ ไม่พบข้อมูลในตาราง' };
 
@@ -218,13 +236,21 @@ function buildFormDetailMessage(keyword, filtered) {
 
   const message = `📋 ฟอร์ม ${keyword}: ${formName}
 
-🗂️ Stored\n${stored.map(s => `🔹 ${s}`).join('\n')}
+🗂️ Stored
+${stored.map(s => `🔹 ${s}`).join('
+')}
 
-🖥️ View\n${view.map(v => `🔸 ${v}`).join('\n')}
+🖥️ View
+${view.map(v => `🔸 ${v}`).join('
+')}
 
-📊 Table\n${table.map(t => `▪️ ${t}`).join('\n')}
+📊 Table
+${table.map(t => `▪️ ${t}`).join('
+')}
 
-📑 Report\n${report.map(r => `📄 ${r}`).join('\n')}`;
+📑 Report
+${report.map(r => `📄 ${r}`).join('
+')}`;
 
   return {
     type: 'text',
