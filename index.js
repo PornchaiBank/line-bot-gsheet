@@ -185,6 +185,28 @@ ${report.map(r => `📄 ${r}`).join('
     type: 'text',
     text: message
   };
+}: ${formName}
+
+🗂️ Stored
+${stored.map(s => `🔹 ${s}`).join('
+')}
+
+🖥️ View
+${view.map(v => `🔸 ${v}`).join('
+')}
+
+📊 Table
+${table.map(t => `▪️ ${t}`).join('
+')}
+
+📑 Report
+${report.map(r => `📄 ${r}`).join('
+')}`;
+
+  return {
+    type: 'text',
+    text: message
+  };
 }
 
 async function searchSheet(keyword, userId = null) {
