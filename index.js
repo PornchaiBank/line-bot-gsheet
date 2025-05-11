@@ -153,3 +153,7 @@ app.post('/webhook', middleware(config), async (req, res) => {
     }
   })).then(() => res.sendStatus(200));
 });
+
+app.listen(port, () => {
+  console.log(`✅ LINE Bot running on port ${port}`);
+});
