@@ -168,23 +168,19 @@ function buildFormDetailMessage(keyword, filtered) {
 
 ` +
     `🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('
-')}
+${stored.map(s => `🔹 ${s}`).join('\n')}
 
 ` +
     `🖥️ View
-${view.map(v => `🔸 ${v}`).join('
-')}
+${view.map(v => `🔸 ${v}`).join('\n')}
 
 ` +
     `📊 Table
-${table.map(t => `▪️ ${t}`).join('
-')}
+${table.map(t => `▪️ ${t}`).join('\n')}
 
 ` +
     `📑 Report
-${report.map(r => `📄 ${r}`).join('
-')}`;
+${report.map(r => `📄 ${r}`).join('\n')}`;
 
   return {
     type: 'text',
@@ -192,101 +188,6 @@ ${report.map(r => `📄 ${r}`).join('
   };
 }
 
-` +
-    `🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join("
-")}
-
-` +
-    `🖥️ View
-${view.map(v => `🔸 ${v}`).join("
-")}
-
-` +
-    `📊 Table
-${table.map(t => `▪️ ${t}`).join("
-")}
-
-` +
-    `📑 Report
-${report.map(r => `📄 ${r}`).join("
-")}`;
-
-  return {
-    type: 'text',
-    text: message
-  };
-}
-
-` +
-    `🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('
-')}
-
-` +
-    `🖥️ View
-${view.map(v => `🔸 ${v}`).join('
-')}
-
-` +
-    `📊 Table
-${table.map(t => `▪️ ${t}`).join('
-')}
-
-` +
-    `📑 Report
-${report.map(r => `📄 ${r}`).join('
-')}`;
-
-  return {
-    type: 'text',
-    text: message
-  };
-}
-
-🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('
-')}
-
-🖥️ View
-${view.map(v => `🔸 ${v}`).join('
-')}
-
-📊 Table
-${table.map(t => `▪️ ${t}`).join('
-')}
-
-📑 Report
-${report.map(r => `📄 ${r}`).join('
-')}`;
-
-  return {
-    type: 'text',
-    text: message
-  };
-}: ${formName}
-
-🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('
-')}
-
-🖥️ View
-${view.map(v => `🔸 ${v}`).join('
-')}
-
-📊 Table
-${table.map(t => `▪️ ${t}`).join('
-')}
-
-📑 Report
-${report.map(r => `📄 ${r}`).join('
-')}`;
-
-  return {
-    type: 'text',
-    text: message
-  };
-}
 
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
