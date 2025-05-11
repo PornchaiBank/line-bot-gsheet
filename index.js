@@ -163,22 +163,101 @@ function buildFormDetailMessage(keyword, filtered) {
   const table = groupByField(4);
   const report = groupByField(5);
 
-  const message = `📋 ฟอร์ม ${keyword}: ${formName}
+  const message =
+    `📋 ฟอร์ม ${keyword}: ${formName}
+
+` +
+    `🗂️ Stored
+${stored.map(s => `🔹 ${s}`).join('
+')}
+
+` +
+    `🖥️ View
+${view.map(v => `🔸 ${v}`).join('
+')}
+
+` +
+    `📊 Table
+${table.map(t => `▪️ ${t}`).join('
+')}
+
+` +
+    `📑 Report
+${report.map(r => `📄 ${r}`).join('
+')}`;
+
+  return {
+    type: 'text',
+    text: message
+  };
+}
+
+` +
+    `🗂️ Stored
+${stored.map(s => `🔹 ${s}`).join("
+")}
+
+` +
+    `🖥️ View
+${view.map(v => `🔸 ${v}`).join("
+")}
+
+` +
+    `📊 Table
+${table.map(t => `▪️ ${t}`).join("
+")}
+
+` +
+    `📑 Report
+${report.map(r => `📄 ${r}`).join("
+")}`;
+
+  return {
+    type: 'text',
+    text: message
+  };
+}
+
+` +
+    `🗂️ Stored
+${stored.map(s => `🔹 ${s}`).join('
+')}
+
+` +
+    `🖥️ View
+${view.map(v => `🔸 ${v}`).join('
+')}
+
+` +
+    `📊 Table
+${table.map(t => `▪️ ${t}`).join('
+')}
+
+` +
+    `📑 Report
+${report.map(r => `📄 ${r}`).join('
+')}`;
+
+  return {
+    type: 'text',
+    text: message
+  };
+}
 
 🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('\n
+${stored.map(s => `🔹 ${s}`).join('
 ')}
 
 🖥️ View
-${view.map(v => `🔸 ${v}`).join('\n
+${view.map(v => `🔸 ${v}`).join('
 ')}
 
 📊 Table
-${table.map(t => `▪️ ${t}`).join('\n
+${table.map(t => `▪️ ${t}`).join('
 ')}
 
 📑 Report
-${report.map(r => `📄 ${r}`).join('\n
+${report.map(r => `📄 ${r}`).join('
 ')}`;
 
   return {
@@ -188,19 +267,19 @@ ${report.map(r => `📄 ${r}`).join('\n
 }: ${formName}
 
 🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('\n
+${stored.map(s => `🔹 ${s}`).join('
 ')}
 
 🖥️ View
-${view.map(v => `🔸 ${v}`).join('\n
+${view.map(v => `🔸 ${v}`).join('
 ')}
 
 📊 Table
-${table.map(t => `▪️ ${t}`).join('\n
+${table.map(t => `▪️ ${t}`).join('
 ')}
 
 📑 Report
-${report.map(r => `📄 ${r}`).join('\n
+${report.map(r => `📄 ${r}`).join('
 ')}`;
 
   return {
