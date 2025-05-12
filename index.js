@@ -164,30 +164,17 @@ function buildFormDetailMessage(keyword, filtered) {
   const report = groupByField(5);
 
   const message =
-    `📋 ฟอร์ม ${keyword}: ${formName}
-
-` +
-    `🗂️ Stored
-${stored.map(s => `🔹 ${s}`).join('\n')}
-
-` +
-    `🖥️ View
-${view.map(v => `🔸 ${v}`).join('\n')}
-
-` +
-    `📊 Table
-${table.map(t => `▪️ ${t}`).join('\n')}
-
-` +
-    `📑 Report
-${report.map(r => `📄 ${r}`).join('\n')}`;
+    `📋 ฟอร์ม ${keyword}: ${formName}\n\n` +
+    `🗂️ Stored\n${stored.map(s => `🔹 ${s}`).join('\n')}\n\n` +
+    `🖥️ View\n${view.map(v => `🔸 ${v}`).join('\n')}\n\n` +
+    `📊 Table\n${table.map(t => `▪️ ${t}`).join('\n')}\n\n` +
+    `📑 Report\n${report.map(r => `📄 ${r}`).join('\n')}`;
 
   return {
     type: 'text',
     text: message
   };
 }
-
 
 async function searchSheet(keyword, userId = null) {
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
@@ -203,6 +190,13 @@ async function searchSheet(keyword, userId = null) {
   const dataRows = rows.slice(1);
   const keywordLower = keyword.toLowerCase();
   const exactMatches = dataRows.filter(row => row[0]?.toLowerCase() === keywordLower);
+
+  // 🔍 Partial match support (e.g., contains "03" or "af")
+  const partialMatches = dataRows.filter(row => row[0]?.toLowerCase().includes(keywordLower));
+  const partialUniqueCodes = [...new Set(partialMatches.map(r => r[0]))];
+  if (partialUniqueCodes.length > 0 && exactMatches.length === 0) {
+    return buildFormDetailMessage(keyword, partialMatches);
+  }
   if (exactMatches.length > 0) {
     return buildFormDetailMessage(keyword, exactMatches);
   }
